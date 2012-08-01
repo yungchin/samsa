@@ -16,13 +16,13 @@ limitations under the License.
 
 from unittest import TestCase
 
-from samsa.config import ConsumerConfig
+from samsa import config
 
 
 class Configured(object):
 
-    def __init__(self, **kwargs):
-        self.config = ConsumerConfig.build(kwargs)
+    def __init__(self, validate=True, **kwargs):
+        self.config = config.build(config.consumer, kwargs, validate)
 
 
 class TestConfig(TestCase):
@@ -30,7 +30,10 @@ class TestConfig(TestCase):
     def test_default(self):
         obj = Configured()
 
-        self.assertEquals(obj.config['socket_buffersize'], ConsumerConfig.socket_buffersize)
+        self.assertEquals(
+            obj.config['socket_buffersize'],
+            config.consumer['socket_buffersize']
+        )
 
     def test_override(self):
 
@@ -40,3 +43,9 @@ class TestConfig(TestCase):
     def test_raises(self):
 
         self.assertRaises(AttributeError, Configured, foo='bar')
+        obj = Configured(foo='bar', validate=False)
+        self.assertEquals(obj.config['foo'], 'bar')
+
+    def test_base(self):
+        obj = config.build(config.consumer)
+        self.assertTrue('metrics' in obj)

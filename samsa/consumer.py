@@ -23,7 +23,7 @@ from kazoo.exceptions import NodeExistsException, NoNodeException
 from functools import partial
 from uuid import uuid4
 
-from samsa.config import ConsumerConfig
+from samsa import config
 from samsa.exceptions import ImproperlyConfigured
 from samsa.partitions import Partition
 
@@ -163,7 +163,7 @@ class Consumer(object):
     """Primary API for consuming kazoo messages as a group.
     """
 
-    def __init__(self, cluster, topic, group, instrumentor=None):
+    def __init__(self, cluster, topic, group, metrics=None):
         """
         :param cluster:
         :type cluster: :class:`samsa.cluster.Cluster`.
@@ -174,11 +174,11 @@ class Consumer(object):
 
         """
 
-        self.config = ConsumerConfig().build()
+        self.config = config.build(config.consumer)
+        self.metrics = self.config['metrics']
         self.cluster = cluster
         self.topic = topic
         self.group = group
-        self.instrumentor = instrumentor
         self.id = "%s:%s" % (socket.gethostname(), uuid4())
 
         self.id_path = '/consumers/%s/ids' % self.group
@@ -273,7 +273,7 @@ class Consumer(object):
         """
 
         # fetch size is the kafka default.
-        return self.instrumentor.timer_iter(
+        return self.metrics.timer_iter(
             itertools.chain.from_iterable(
                 itertools.imap(
                     lambda p: p.fetch(self.config['fetch_size']),
