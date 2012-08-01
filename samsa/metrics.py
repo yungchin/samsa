@@ -25,6 +25,7 @@ PRECISION = {
     'microsecond': "%.6f",
 }
 
+_INSTANCES = {}
 
 class BaseMetricReporter(object):
 
@@ -71,9 +72,9 @@ class BaseMetricReporter(object):
 
     @classmethod
     def instance(cls):
-        if not getattr(cls, '_instance', None):
-            cls._instance = cls()
-        return cls._instance
+        if cls.__name__ not in _INSTANCES:
+            _INSTANCES[cls.__name__] = cls()
+        return _INSTANCES[cls.__name__]
 
 
 class MemoryBackedReporter(BaseMetricReporter):
