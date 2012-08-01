@@ -65,7 +65,7 @@ class BaseMetricReporter(object):
         """Use resevoir sampling to construct a histogram of values.
         """
         pass
-    
+
     def export_histogram(self):
         pass
 
