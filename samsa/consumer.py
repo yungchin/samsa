@@ -163,7 +163,7 @@ class Consumer(object):
     """Primary API for consuming kazoo messages as a group.
     """
 
-    def __init__(self, cluster, topic, group):
+    def __init__(self, cluster, topic, group, instrumentor=None):
         """
         :param cluster:
         :type cluster: :class:`samsa.cluster.Cluster`.
@@ -178,6 +178,7 @@ class Consumer(object):
         self.cluster = cluster
         self.topic = topic
         self.group = group
+        self.instrumentor = instrumentor
         self.id = "%s:%s" % (socket.gethostname(), uuid4())
 
         self.id_path = '/consumers/%s/ids' % self.group
@@ -272,11 +273,14 @@ class Consumer(object):
         """
 
         # fetch size is the kafka default.
-        return itertools.chain.from_iterable(
+        return self.instrumentor.timer_iter(
+            itertools.chain.from_iterable(
                 itertools.imap(
-                lambda p: p.fetch(self.config['fetch_size']),
-                self.partitions
-            )
+                    lambda p: p.fetch(self.config['fetch_size']),
+                    self.partitions
+                )
+            ),
+            self.__class__.__name__ + '.fetch'
         )
 
     def commit_offsets(self):
