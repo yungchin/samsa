@@ -26,21 +26,21 @@ kc.connect()
 cluster = Cluster(kc)
 
 def benchmark():
-    topic = 'topic'
+    topic = 'topic2'
 
     messages = ['hello world', 'foobar']
 
     t = Topic(cluster, topic)
-    t.publish(messages * 1000)
+    t.publish(messages * 10 ** 1)
 
-    consumer = t.subscribe('group2')
+    consumer = t.subscribe('group4')
     consumer.instrumentor = MemoryBackedMetrics()
 
 
     print len(list(consumer))
 
-
     print consumer.instrumentor.export_histogram()
+    consumer.commit_offsets()
 
 
 if __name__ == '__main__':
