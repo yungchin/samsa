@@ -1,5 +1,5 @@
 #!/usr/bin/env
-"""
+__license__ = """
 Copyright 2012 DISQUS
 
 Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,7 +17,7 @@ limitations under the License.
 
 from kazoo.client import KazooClient
 from samsa.cluster import Cluster
-from samsa.metrics import MemoryBackedMetrics
+from samsa.metrics import MemoryBackedReporter
 from samsa.topics import Topic
 
 kc = KazooClient()
@@ -26,20 +26,20 @@ kc.connect()
 cluster = Cluster(kc)
 
 def benchmark():
-    topic = 'topic2'
+    topic = 'topic3'
 
     messages = ['hello world', 'foobar']
 
     t = Topic(cluster, topic)
     t.publish(messages * 10 ** 1)
 
-    consumer = t.subscribe('group4')
-    consumer.instrumentor = MemoryBackedMetrics()
+    consumer = t.subscribe('group5')
+    consumer.metrics = MemoryBackedReporter()
 
 
     print len(list(consumer))
 
-    print consumer.instrumentor.export_histogram()
+    print consumer.metrics.export_histogram()
     consumer.commit_offsets()
 
 

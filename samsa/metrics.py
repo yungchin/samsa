@@ -1,4 +1,4 @@
-"""
+__license__ = """
 Copyright 2012 DISQUS
 
 Licensed under the Apache License, Version 2.0 (the "License");
@@ -26,7 +26,7 @@ PRECISION = {
 }
 
 
-class MetricsInterface(object):
+class BaseMetricReporter(object):
 
     @contextmanager
     def timer(self, name, precision='microsecond'):
@@ -42,7 +42,6 @@ class MetricsInterface(object):
     def timer_iter(self, iterable, name):
         """Time each call to next().
         """
-
         while True:
             try:
                 with self.timer(name):
@@ -55,23 +54,29 @@ class MetricsInterface(object):
     def gauge(self, name, val):
         """Record `value` along with `name`.
         """
-        raise NotImplementedError
+        pass
 
     def count(self, name, val):
         """Add `val` to `name`.
         """
-        raise NotImplementedError
+        pass
 
     def histogram(self, name, val):
         """Use resevoir sampling to construct a histogram of values.
         """
-        raise NotImplementedError
+        pass
     
     def export_histogram(self):
-        raise NotImplementedError
+        pass
+
+    @classmethod
+    def instance(cls):
+        if not getattr(cls, '_instance', None):
+            cls._instance = cls()
+        return cls._instance
 
 
-class MemoryBackedMetrics(MetricsInterface):
+class MemoryBackedReporter(BaseMetricReporter):
 
     def __init__(self):
         self.gauges = defaultdict(list)
