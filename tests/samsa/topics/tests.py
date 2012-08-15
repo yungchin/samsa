@@ -18,10 +18,29 @@ import mock
 import unittest2
 from zookeeper import NoNodeException
 
+from samsa.batch import Batch
 from samsa.cluster import Cluster
 from samsa.exceptions import NoAvailablePartitions
 from samsa.topics import TopicMap, Topic
 from samsa.test.integration import KafkaIntegrationTestCase
+
+
+class TopicTestCase(unittest2.TestCase):
+    def test_batch(self):
+        cluster = mock.Mock(spec=Cluster)
+        name = 'my-topic'
+        topic = Topic(cluster, name)
+        with mock.patch.object(Batch, 'publish') as mock_publish:
+            batch = topic.batch
+            messages = ('hello', 'world')
+            batch.publish(messages)
+            self.assertEqual(mock_publish.call_args[1]['topic'], name)
+
+        with mock.patch.object(Batch, 'publish') as mock_publish:
+            messages = ('hello', 'world')
+            with topic.batch as batch:
+                batch.publish(messages)
+            self.assertEqual(mock_publish.call_args[1]['topic'], name)
 
 
 class TopicIntgrationTestCase(KafkaIntegrationTestCase):

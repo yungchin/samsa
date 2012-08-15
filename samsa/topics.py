@@ -14,9 +14,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
+import functools
 import logging
 import random
 
+from samsa.batch import Batch
 from samsa.exceptions import NoAvailablePartitions
 from samsa.partitions import PartitionMap
 from samsa.consumer import Consumer
@@ -86,6 +88,12 @@ class Topic(object):
         self.partitioner = partitioner
 
     __repr__ = attribute_repr('name')
+
+    @property
+    def batch(self):
+        batch = Batch(self.cluster)
+        batch.publish = functools.partial(batch.publish, topic=self.name)
+        return batch
 
     def publish(self, data, key=None):
         """
