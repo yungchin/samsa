@@ -91,9 +91,7 @@ class Topic(object):
 
     @property
     def batch(self):
-        batch = Batch(self.cluster)
-        batch.publish = functools.partial(batch.publish, topic=self.name)
-        return batch
+        return TopicBatch(self.cluster, self)
 
     def publish(self, data, key=None):
         """
@@ -120,3 +118,12 @@ class Topic(object):
         :rtype: :class:`samsa.consumer.consumer.Consumer`
         """
         return Consumer(self.cluster, self, group)
+
+
+class TopicBatch(Batch):
+    def __init__(self, cluster, topic, *args, **kwargs):
+        super(TopicBatch, self).__init__(cluster=cluster, *args, **kwargs)
+        self.topic = topic
+
+    def publish(self, data, key=None):
+        return super(TopicBatch, self).publish(self.topic.name, data, key)

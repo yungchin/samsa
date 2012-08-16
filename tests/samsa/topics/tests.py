@@ -34,13 +34,13 @@ class TopicTestCase(unittest2.TestCase):
             batch = topic.batch
             messages = ('hello', 'world')
             batch.publish(messages)
-            self.assertEqual(mock_publish.call_args[1]['topic'], name)
+            self.assertEqual(mock_publish.call_args[0][0], name)
 
         with mock.patch.object(Batch, 'publish') as mock_publish:
             messages = ('hello', 'world')
             with topic.batch as batch:
                 batch.publish(messages)
-            self.assertEqual(mock_publish.call_args[1]['topic'], name)
+            self.assertEqual(mock_publish.call_args[0][0], name)
 
 
 class TopicIntgrationTestCase(KafkaIntegrationTestCase):
