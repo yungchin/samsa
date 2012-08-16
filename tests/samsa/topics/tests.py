@@ -28,19 +28,18 @@ from samsa.test.integration import KafkaIntegrationTestCase
 class TopicTestCase(unittest2.TestCase):
     def test_batch(self):
         cluster = mock.Mock(spec=Cluster)
-        name = 'my-topic'
-        topic = Topic(cluster, name)
+        topic = Topic(cluster, 'topic')
         with mock.patch.object(Batch, 'publish') as mock_publish:
             batch = topic.batch
             messages = ('hello', 'world')
             batch.publish(messages)
-            self.assertEqual(mock_publish.call_args[0][0], name)
+            self.assertEqual(mock_publish.call_args[0][0], topic)
 
         with mock.patch.object(Batch, 'publish') as mock_publish:
             messages = ('hello', 'world')
             with topic.batch as batch:
                 batch.publish(messages)
-            self.assertEqual(mock_publish.call_args[0][0], name)
+            self.assertEqual(mock_publish.call_args[0][0], topic)
 
 
 class TopicIntgrationTestCase(KafkaIntegrationTestCase):

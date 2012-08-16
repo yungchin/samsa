@@ -120,4 +120,4 @@ class TopicBatch(Batch):
         self.topic = topic
 
     def publish(self, data, key=None):
-        return super(TopicBatch, self).publish(self.topic.name, data, key)
+        return super(TopicBatch, self).publish(self.topic, data, key)
