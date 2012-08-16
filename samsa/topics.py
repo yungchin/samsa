@@ -20,6 +20,7 @@ import random
 
 from samsa.batch import Batch
 from samsa.exceptions import NoAvailablePartitions
+from samsa.partitioners import random_partitioner
 from samsa.partitions import PartitionMap
 from samsa.consumer import Consumer
 from samsa.utils import attribute_repr
@@ -60,13 +61,6 @@ class TopicMap(object):
             topic = self.__topics[name] = Topic(self.cluster, name)
             logger.info('Registered new topic: %s', topic)
         return topic
-
-
-def random_partitioner(partitions, key):
-    """
-    Returns a random partition out of all of the available partitions.
-    """
-    return random.choice(list(partitions))
 
 
 class Topic(object):
