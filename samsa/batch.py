@@ -1,4 +1,3 @@
-import itertools
 from collections import defaultdict
 
 from samsa.partitioners import random_partitioner

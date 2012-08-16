@@ -14,9 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
-import functools
 import logging
-import random
 
 from samsa.batch import Batch
 from samsa.exceptions import NoAvailablePartitions
