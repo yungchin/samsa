@@ -14,7 +14,6 @@ class BatchTestCase(KafkaIntegrationTestCase):
         messages = ('hello', 'world')
         with batch:
             batch.publish(topic, messages)
-        messages = ('hello', 'world')
             self.assertEqual(len(batch.pending), 1)
         self.assertEqual(len(batch.pending), 0)
         self.assertEqual(batch.flush.call_count, 1)
