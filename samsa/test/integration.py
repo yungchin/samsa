@@ -20,6 +20,7 @@ import logging
 import os
 import socket
 import subprocess
+import sys
 import tempfile
 import threading
 import time
@@ -93,8 +94,6 @@ class ExternalClassRunner(object):
     kwargs = {}
     executable = os.path.join(os.path.dirname(__file__), 'kafka-run-class.sh')
 
-    stop_timeout = 3
-
     KAFKA_OPTIONS = {
         'heap_max': '512M',
     }
@@ -158,25 +157,18 @@ class ExternalClassRunner(object):
         self.process.poll()
         return self.process.returncode is None
 
-    def stop(self, timeout=None):
+    def stop(self):
         if not self.is_running():
             return
 
-        if timeout is None:
-            timeout = self.stop_timeout
-
         logger.debug('Sending SIGTERM to %s...', self.process)
 
+        out, err = self.process.communicate()
+        sys.stdout.write(out)
+        sys.stderr.write(err)
+
         self.process.terminate()
-        try:
-            polling_timeout(lambda: not self.is_running(), timeout)
-            logger.debug('%s exited cleanly', self.process)
-        except TimeoutError:
-            logger.info('%s did not exit within %s timeout, sending '
-                'SIGKILL...', timeout, self.process)
-            self.process.kill()
-            # If sigkill doesn't end the process expediently, we can't continue
-            polling_timeout(lambda: not self.is_running(), timeout)
+        self.process.wait()
 
 
 class ManagedBroker(ExternalClassRunner):
@@ -282,9 +274,6 @@ class ManagedProducer(ExternalClassRunner):
 
 class ManagedConsumer(ExternalClassRunner):
     cls = 'kafka.tools.ConsumerShell'
-    kwargs = {
-        'stdout': subprocess.PIPE,
-    }
 
     def __init__(self, hosts, topic, group='test-consumer-group'):
         super(ManagedConsumer, self).__init__()
