@@ -175,6 +175,8 @@ class ExternalClassRunner(object):
             logger.info('%s did not exit within %s timeout, sending '
                 'SIGKILL...', timeout, self.process)
             self.process.kill()
+            # If sigkill doesn't end the process expediently, we can't continue
+            polling_timeout(lambda: not self.is_running(), timeout)
 
 
 class ManagedBroker(ExternalClassRunner):
