@@ -128,29 +128,22 @@ class ExternalClassRunner(object):
         self.process = subprocess.Popen(args, **kwargs)
         self._running = True
 
-        def convert_log_output(namespace):
-            """
-            Scrapes log4j output, forwarding the log output to the
-            corresponding Python logging endpoint.
-            """
-            while True:
-                line = self.process.stderr.readline().strip()
-                if not line:
-                    continue
+    def convert_log_output(self, log, namespace):
+        """
+        Scrapes log4j output, forwarding the log output to the
+        corresponding Python logging endpoint.
+        """
+        for line in log:
+            line = line.strip()
 
-                try:
-                    name, level, message = \
-                        methodmap('strip', line.split(':', 2))
-                    logger = logging.getLogger('%s.%s' % (namespace, name))
-                    logger.log(getattr(logging, level.upper()), message)
-                except Exception:
-                    logger = logging.getLogger('%s.raw' % namespace)
-                    logger.warning(line)
-
-        self.log_thread = threading.Thread(target=convert_log_output,
-            args=('java.%s' % self.cls,))
-        self.log_thread.daemon = True  # shouldn't be necessary, just in case
-        self.log_thread.start()
+            try:
+                name, level, message = \
+                    methodmap('strip', line.split(':', 2))
+                logger = logging.getLogger('%s.%s' % (namespace, name))
+                logger.log(getattr(logging, level.upper()), message)
+            except Exception:
+                logger = logging.getLogger('%s.raw' % namespace)
+                logger.warning(line)
 
     def is_running(self):
         return self._running
@@ -161,12 +154,13 @@ class ExternalClassRunner(object):
 
         logger.debug('Sending SIGTERM to %s...', self.process)
 
-        out, err = self.process.communicate()
-        sys.stdout.write(out)
-        sys.stderr.write(err)
-
         self.process.terminate()
         self.process.wait()
+
+        out, err = self.process.communicate()
+
+        self.convert_log_output(err, 'java.%s' % self.cls,)
+
         self._running = False
 
 
