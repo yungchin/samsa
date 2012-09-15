@@ -26,19 +26,13 @@ try:
 except ImportError:
     pass
 
-
 install_requires = [
-    'zc-zookeeper-static',
-    'kazoo',
+    'kazoo==0.5',
 ]
 
 lint_requires = [
     'pep8',
     'pyflakes'
-]
-
-dependency_links = [
-    'https://github.com/python-zk/kazoo/zipball/master#egg=kazoo',
 ]
 
 tests_require = ['mock', 'nose', 'unittest2']
@@ -59,7 +53,6 @@ setup(
     install_requires=install_requires,
     tests_require=tests_require,
     setup_requires=setup_requires,
-    dependency_links=dependency_links,
     extras_require={
         'test': tests_require,
         'all': install_requires + tests_require,

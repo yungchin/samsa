@@ -16,7 +16,7 @@ limitations under the License.
 
 import mock
 import unittest2
-from zookeeper import NoNodeException
+from kazoo.exceptions import NoNodeException
 
 from samsa.batch import Batch
 from samsa.cluster import Cluster

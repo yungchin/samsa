@@ -14,16 +14,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
-import atexit
 import logging
 import socket
 import struct
-from collections import namedtuple
-from Queue import Queue
-from threading import Event, Thread
 from zlib import crc32
 
-from samsa.exceptions import ERROR_CODES
+from samsa import handlers
+from samsa.exceptions import (ERROR_CODES, InvalidVersionError,
+    SocketDisconnectedError)
 from samsa.utils import attribute_repr
 from samsa.utils.functional import methodimap
 from samsa.utils.namedstruct import NamedStruct
@@ -33,60 +31,56 @@ from samsa.utils.structuredio import StructuredBytesIO
 
 logger = logging.getLogger(__name__)
 
-# Message Decoding
+
+# Requests
+
+(REQUEST_TYPE_PRODUCE, REQUEST_TYPE_FETCH, REQUEST_TYPE_MULTIFETCH,
+    REQUEST_TYPE_MULTIPRODUCE, REQUEST_TYPE_OFFSETS) = range(0, 5)
+
+OFFSET_LATEST = -1
+OFFSET_EARLIEST = -2
+
+DEFAULT_VERSION = 0
+
+COMPRESSION_TYPE_NONE = 0
+COMPRESSION_TYPE_GZIP = 1
+COMPRESSION_TYPE_SNAPPY = 2
+COMPRESSION_TYPES = (
+    COMPRESSION_TYPE_NONE, COMPRESSION_TYPE_GZIP,
+    COMPRESSION_TYPE_SNAPPY
+)
+
+MessageSetFrameHeader = NamedStruct('MessageSetFrameHeader', (
+    ('i', 'length'),
+))
+
+# Responses
 
 MessageSetHeader = NamedStruct('MessageSetHeader', (
     ('i', 'length'),
     ('h', 'error'),
 ))
 
+ResponseFrameHeader = struct.Struct('!i')
 
-def decode_message_sets(payload, from_offsets):
-    offset = 0
-    for from_offset in from_offsets:
-        (length,) = ResponseFrameHeader.unpack_from(payload, offset=offset)
-        header = ResponseErrorHeader.unpack_from(
-            payload,
-            offset=offset + ResponseFrameHeader.size
-        )
-        if header.error:
-            error_class = ERROR_CODES.get(header.error, -1)
-            raise error_class(error_class.reason)
-        message_set_payload = buffer(payload,
-            offset + (ResponseFrameHeader.size + ResponseErrorHeader.size),
-            length - ResponseErrorHeader.size)
-        yield decode_messages(message_set_payload, from_offset)
-        offset += length + ResponseFrameHeader.size
+ResponseErrorHeader = NamedStruct('ResponseErrorHeader', (
+    ('h', 'error'),
+))
+
+OffsetsResponseHeader = NamedStruct('OffsetsResponseHeader', (
+    ('i', 'count'),
+))
+
+Offset = NamedStruct('Offset', (
+    ('q', 'value'),
+))
 
 
-def decode_messages(payload, from_offset):
-    """
-    Decodes ``Message`` objects from a ``payload`` buffer.
-    """
-    offset = 0
-    while offset < len(payload):
-        header = Message.Header.unpack_from(payload, offset)
-        length = 4 + header.length
-        message = Message(
-            raw=buffer(payload, offset, length),
-            offset=from_offset + offset
-        )
-        if message.valid:
-            yield message
-        else:
-            if len(message) + offset == len(payload):
-                # If this is the last message,
-                # it's OK to drop it if it's truncated.
-                logger.info('Discarding partial message '
-                            '(expected %s bytes, got %s): %s',
-                    length, len(message), message)
-                return
-            else:
-                raise AssertionError(
-                    "Length of %s (%s) does not match it's "
-                    "stated frame size of %s" % (message, len(message), length)
-                )
-        offset += length
+# Messages
+
+class VersionHeaderMap(dict):
+    def __missing__(self, key):
+        raise InvalidVersionError('%s is not a valid version identifier' % key)
 
 
 class Message(object):
@@ -97,7 +91,7 @@ class Message(object):
         ('b', 'magic'),
     ))
 
-    VersionHeaders = {
+    VersionHeaders = VersionHeaderMap({
         0: NamedStruct('Header', (
             ('i', 'checksum'),
         )),
@@ -105,7 +99,7 @@ class Message(object):
             ('b', 'compression'),
             ('i', 'checksum'),
         )),
-    }
+    })
 
     def __init__(self, raw, offset=0):
         self.raw = raw
@@ -165,149 +159,151 @@ class Message(object):
     def valid(self):
         return self['checksum'] == crc32(self.payload)
 
+    @classmethod
+    def pack_into(cls, bytea, offset, payload, version, compression=None):
+        """
+        Packs a message payload into a buffer.
 
-(REQUEST_TYPE_PRODUCE, REQUEST_TYPE_FETCH, REQUEST_TYPE_MULTIFETCH,
-    REQUEST_TYPE_MULTIPRODUCE, REQUEST_TYPE_OFFSETS) = range(0, 5)
+        :param bytea: buffer to pack the message into
+        :type bytea: bytearray
+        :param offset: offset to start writing at
+        :type offset: int
+        :param payload: message payload
+        :type payload: str
+        :param version: message version to publish ("magic number")
+        :type version: int
+        :param compression: which compression format to use
+                            (only for version 1)
+        :type compression: int
+        :returns: total amount of written (in bytes)
+        :rtype: int
+        """
+        if version < 1:
+            if compression is not None:
+                raise ValueError(
+                    'Compression is not supported on version %s' % version
+                )
+        elif compression is not None:
+            if compression not in COMPRESSION_TYPES:
+                raise ValueError(
+                    '%s is not a valid compression type' % compression
+                )
+            elif compression is not COMPRESSION_TYPE_NONE:
+                raise NotImplementedError  # TODO
+        else:
+            compression = COMPRESSION_TYPE_NONE
 
-OFFSET_LATEST = -1
-OFFSET_EARLIEST = -2
+        VersionHeader = cls.VersionHeaders[version]
+
+        # Write generic message header.
+        length = cls.Header.size + VersionHeader.size + len(payload)
+        cls.Header.pack_into(
+            bytea, offset=offset,
+            length=length - 4, magic=version
+        )
+        offset += cls.Header.size
+
+        # Write versioned message header.
+        version_kwargs = {}
+        if compression is not None:
+            version_kwargs['compression'] = compression
+        VersionHeader.pack_into(
+            bytea, offset=offset,
+            checksum=crc32(payload), **version_kwargs
+        )
+        offset += VersionHeader.size
+
+        # Write message payload.
+        bytea[offset:offset + len(payload)] = payload
+
+        return length
+
+    @classmethod
+    def encode(cls, messages, version, **kwargs):
+        """
+        Encodes multiple messages.
+
+        :param messages: messages to publish
+        :type messages: sequence of strs
+        :param version: message version to publish ("magic number")
+        :type version: int
+        :param \*\*kwargs: extra arguments to pass to :meth:`.pack_into`
+        :returns: encoded messages
+        :rtype: :class:`samsa.utils.structuredio.StructuredBytesIO`
+        """
+        message_header_length = (
+            cls.Header.size +
+            cls.VersionHeaders[version].size
+        )
+        length = (
+            MessageSetFrameHeader.size +
+            sum(map(len, messages)) +
+            (len(messages) * message_header_length)
+        )
+        bytea = bytearray(length)
+        MessageSetFrameHeader.pack_into(bytea, 0, length=length - 4)
+        offset = MessageSetFrameHeader.size
+        for message in messages:
+            written = cls.pack_into(
+                bytea, offset,
+                payload=message, version=version, **kwargs
+            )
+            offset += written
+        return StructuredBytesIO(bytea)
+
+
+def decode_message_sets(payload, from_offsets):
+    offset = 0
+    for from_offset in from_offsets:
+        (length,) = ResponseFrameHeader.unpack_from(payload, offset=offset)
+        header = ResponseErrorHeader.unpack_from(
+            payload,
+            offset=offset + ResponseFrameHeader.size
+        )
+        if header.error:
+            error_class = ERROR_CODES.get(header.error, -1)
+            raise error_class(error_class.reason)
+        message_set_payload = buffer(payload,
+            offset + (ResponseFrameHeader.size + ResponseErrorHeader.size),
+            length - ResponseErrorHeader.size)
+        yield decode_messages(message_set_payload, from_offset)
+        offset += length + ResponseFrameHeader.size
+
+
+def decode_messages(payload, from_offset):
+    """
+    Decodes ``Message`` objects from a ``payload`` buffer.
+    """
+    offset = 0
+    while offset < len(payload):
+        header = Message.Header.unpack_from(payload, offset)
+        length = 4 + header.length
+        message = Message(
+            raw=buffer(payload, offset, length),
+            offset=from_offset + offset
+        )
+        if message.valid:
+            yield message
+        else:
+            if len(message) + offset == len(payload):
+                # If this is the last message,
+                # it's OK to drop it if it's truncated.
+                logger.info('Discarding partial message '
+                            '(expected %s bytes, got %s): %s',
+                    length, len(message), message)
+                return
+            else:
+                raise AssertionError(
+                    "Length of %s (%s) does not match it's "
+                    "stated frame size of %s" % (message, len(message), length)
+                )
+        offset += length
 
 
 def write_request_header(request, topic, partition):
     request.frame(2, topic)
     request.pack(4, partition)
     return request
-
-
-def encode_message(content):
-    magic = 0
-    payload = StructuredBytesIO()
-    payload.pack(1, magic)
-    payload.pack(4, crc32(content))
-    payload.write(content)
-    return payload.wrap(4)
-
-
-def encode_messages(messages):
-    payload = StructuredBytesIO()
-    for message in messages:
-        payload.write(encode_message(message))
-    return payload.wrap(4)
-
-
-# Client API
-
-ResponseFrameHeader = struct.Struct('!i')
-ResponseErrorHeader = NamedStruct('ResponseErrorHeader', (
-    ('h', 'error'),
-))
-
-OffsetsResponseHeader = NamedStruct('OffsetsResponseHeader', (
-    ('i', 'count'),
-))
-
-Offset = NamedStruct('Offset', (
-    ('q', 'value'),
-))
-
-
-class ResponseFuture(object):
-    """A samsa response which may have a value at some point."""
-
-    def __init__(self):
-        self.error = False
-        self._ready = Event()
-
-    def set_response(self, response):
-        """Set response data and trigger get method."""
-        self.response = response
-        self._ready.set()
-
-    def set_error(self, error):
-        """Set error and trigger get method."""
-        self.error = error
-        self._ready.set()
-
-    def get(self):
-        """Block until data is ready and return.
-
-        Raises exception if there was an error.
-
-        """
-        self._ready.wait()
-        if self.error:
-            raise self.error
-        return self.response
-
-
-class RequestHandler(object):
-    """Interface for request handlers."""
-
-    def __init__(self, connection):
-        self.connection = connection
-
-    def start(self):
-        """Start the request processor."""
-        raise NotImplementedError
-
-    def stop(self):
-        """Stop the request processor."""
-        raise NotImplementedError
-
-    def request(self):
-        """Construct a new requst
-
-        :returns: :class:`samsa.client.ResponseFuture`
-
-        """
-        raise NotImplementedError
-
-
-class ThreadedRequestHandler(RequestHandler):
-    """Uses a worker thread to dispatch requests."""
-
-    Task = namedtuple('Task', ['request', 'future'])
-
-    def __init__(self, connection):
-        super(ThreadedRequestHandler, self).__init__(connection)
-        self._requests = Queue()
-        self.ending = Event()
-        atexit.register(self.stop)
-
-    def request(self, request, has_response=True):
-        future = None
-        if has_response:
-            future = ResponseFuture()
-
-        task = self.Task(request, future)
-        self._requests.put(task)
-        return future
-
-    def start(self):
-        self.t = self._start_thread()
-
-    def stop(self):
-        self._requests.join()
-        self.ending.set()
-
-    def _start_thread(self):
-        def worker():
-            while not self.ending.is_set():
-                task = self._requests.get()
-                try:
-                    self.connection.request(task.request)
-                    if task.future:
-                        self.connection.response(task.future)
-                except Exception, e:
-                    if task.future:
-                        task.future.set_error(e)
-                finally:
-                    self._requests.task_done()
-
-        t = Thread(target=worker)
-        t.daemon = True
-        t.start()
-        return t
 
 
 class Connection(object):
@@ -319,12 +315,24 @@ class Connection(object):
         self.timeout = timeout
         self._socket = None
 
+    def __del__(self):
+        self.disconnect()
+
+    @property
+    def connected(self):
+        """
+        Do we think the socket is open.
+        """
+        return self._socket is not None
+
     def connect(self):
         """
         Connect to the broker.
         """
-        self._socket = socket.create_connection((self.host, self.port),
-            timeout=self.timeout)
+        self._socket = socket.create_connection(
+            (self.host, self.port),
+            timeout=self.timeout
+        )
 
     def disconnect(self):
         """
@@ -355,10 +363,15 @@ class Connection(object):
         """Wait for a response and assign to future.
 
         :param future: Where to assign response data.
-        :type future: :class:`samsa.client.ResponseFuture`
+        :type future: :class:`samsa.handlers.ResponseFuture`
 
         """
-        response = recv_framed(self._socket, ResponseFrameHeader)
+        try:
+            response = recv_framed(self._socket, ResponseFrameHeader)
+        except SocketDisconnectedError:
+            self.disconnect()
+            raise
+
         header = ResponseErrorHeader.unpack_from(buffer(response))
         if header.error:
             exception_class = ERROR_CODES.get(header.error, -1)
@@ -376,18 +389,26 @@ class Client(object):
     :param port: broker port number
     :param timeout: socket timeout
     """
-    def __init__(self, host, port=9092, timeout=None, autoconnect=True):
-        connection = Connection(host, port, timeout)
+    def __init__(self, host, handler, port=9092, timeout=30, autoconnect=True):
+        self.connection = Connection(host, port, timeout)
+        self.handler = handlers.RequestHandler(handler, self.connection)
         if autoconnect:
-            connection.connect()
-        self.handler = ThreadedRequestHandler(connection)
+            self.connect()
+
+    def connect(self):
+        self.connection.connect()
         self.handler.start()
+
+    def disconnect(self):
+        self.handler.stop()
+        self.connection.disconnect()
 
     __repr__ = attribute_repr('connection')
 
     # Protocol Implementation
 
-    def produce(self, topic, partition, messages):
+    def produce(self, topic, partition, messages,
+                version=DEFAULT_VERSION, **kwargs):
         """
         Sends messages to the broker on a single topic/partition combination.
 
@@ -397,14 +418,18 @@ class Client(object):
         :param partition: partition ID
         :param messages: the messages to be sent
         :type messages: list, generator, or other iterable of strings
+        :param version: version of message encoding
+        :type version: int
+        :param \*\*kwargs: extra (version-specific) keyword arguments
+                           to pass to message encoder
         """
         request = StructuredBytesIO()
         request.pack(2, REQUEST_TYPE_PRODUCE)
         write_request_header(request, topic, partition)
-        request.write(encode_messages(messages))
+        request.write(Message.encode(messages, version=version, **kwargs))
         return self.handler.request(request, has_response=False)
 
-    def multiproduce(self, data):
+    def multiproduce(self, data, version=DEFAULT_VERSION, **kwargs):
         """
         Sends messages to the broker on multiple topics and/or partitions.
 
@@ -416,12 +441,16 @@ class Client(object):
         :param data: sequence of 3-tuples of the format
                      ``(topic, partition, messages)``
         :type data: list, generator, or other iterable
+        :param version: version of message encoding
+        :type version: int
+        :param \*\*kwargs: extra (version-specific) keyword arguments
+                           to pass to message encoder
         """
         payloads = []
         for topic, partition, messages in data:
             payload = StructuredBytesIO()
             write_request_header(payload, topic, partition)
-            payload.write(encode_messages(messages))
+            payload.write(Message.encode(messages, version=version, **kwargs))
             payloads.append(payload)
 
         request = StructuredBytesIO()
@@ -453,9 +482,13 @@ class Client(object):
         write_request_header(request, topic, partition)
         request.pack(8, offset)
         request.pack(4, size)
+
         response = self.handler.request(request)
 
-        return decode_messages(response.get(), from_offset=offset)
+        try:
+            return decode_messages(response.get(), from_offset=offset)
+        except SocketDisconnectedError:
+            return []
 
     def multifetch(self, data):
         """
