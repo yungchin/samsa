@@ -16,7 +16,7 @@ limitations under the License.
 
 import logging
 
-from zookeeper import NoNodeException
+from kazoo.exceptions import NoNodeException
 
 from samsa.client import Client
 from samsa.exceptions import ImproperlyConfiguredError
@@ -54,7 +54,8 @@ class BrokerMap(DelayedConfiguration):
             broker_ids = self.cluster.zookeeper.get_children(path,
                 watch=self._configure)
         except NoNodeException:
-            raise ImproperlyConfiguredError('The path "%s" does not exist in your '
+            raise ImproperlyConfiguredError(
+                'The path "%s" does not exist in your '
                 'ZooKeeper cluster -- is your Kafka cluster running?' % path)
 
         alive = set()
@@ -181,5 +182,6 @@ class Broker(DelayedConfiguration):
         try:
             return self.__client
         except AttributeError:
-            self.__client = Client(self.host, self.port)
+            self.__client = Client(self.host, self.cluster.handler,
+                                   port=self.port)
             return self.__client
