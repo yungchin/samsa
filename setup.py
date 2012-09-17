@@ -60,5 +60,5 @@ setup(
         'lint': lint_requires
     },
     zip_safe=False,
-    test_suite='nose.collector',
+    test_suite='tests.run',
 )

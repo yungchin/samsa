@@ -14,11 +14,14 @@ unit:
 integration:
 	python setup.py nosetests --attr=integration
 
-test:
+clean:
+	find . -name \*.pyc -delete
+
+test: clean
 	python setup.py nosetests
 
 vendor:
 	make -C vendor
 
 
-.PHONY: doc unit integration test lint vendor
+.PHONY: doc unit integration test lint vendor clean
