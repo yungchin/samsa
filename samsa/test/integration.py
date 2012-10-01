@@ -96,7 +96,7 @@ class ExternalClassRunner(object):
     stop_timeout = 3
 
     KAFKA_OPTIONS = {
-        'heap_max': '512M',
+        'heap_max': os.environ.get('KAFKA_HEAP_MAX', '512M'),
     }
 
     LOGGING_CONFIGURATION = {
