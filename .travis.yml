@@ -21,6 +21,7 @@ env:
         - KAFKA_PATH=/usr/local/kafka
         - KAFKA_START_TIMEOUT=30
         - KAFKA_HEAP_SIZE=256M
+        - KAFKA_TIMEOUT_MULTIPLIER=3
     matrix:
         - KAZOO_VERSION='>=0.5,<0.6'
         - KAZOO_VERSION='>=0.6,<0.7'
