@@ -13,7 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
-
+import os
 import time
 import unittest2
 
@@ -24,6 +24,8 @@ class TestCase(unittest2.TestCase):
     """
     A :class:`~unittest2.TestCase` subclass that extra useful test methods.
     """
+    timeout_multiplier = int(os.environ.get('KAFKA_TIMEOUT_MULTIPLIER', 1))
+
     def assertPassesWithMultipleAttempts(self, fn, attempts, timeout=1,
             backoff=None, logger=None):
         """
@@ -61,6 +63,6 @@ class TestCase(unittest2.TestCase):
                     wait = backoff(attempt, timeout)
                     logger.exception('Failed attempt %s for %s, waiting for '
                         '%s seconds', attempt, fn, wait)
-                    time.sleep(wait)
+                    time.sleep(wait * self.timeout_multiplier)
                 else:
                     raise
