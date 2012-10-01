@@ -20,6 +20,7 @@ env:
         - ZOOKEEPER_PATH=/usr/share/java
         - KAFKA_PATH=/usr/local/kafka
         - KAFKA_START_TIMEOUT=30
+        - KAFKA_HEAP_SIZE=256M
     matrix:
         - KAZOO_VERSION='>=0.5,<0.6'
         - KAZOO_VERSION='>=0.6,<0.7'
