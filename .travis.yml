@@ -23,8 +23,8 @@ env:
         - KAFKA_HEAP_SIZE=256M
         - KAFKA_TIMEOUT_MULTIPLIER=3
     matrix:
-        - KAZOO=kazoo>=0.5,<0.6
-        - KAZOO=kazoo>=0.6,<0.7
+        - KAZOO='kazoo>=0.5,<0.6'
+        - KAZOO='kazoo>=0.6,<0.7'
         - KAZOO='https://github.com/python-zk/kazoo/zipball/master'
 
 install:
