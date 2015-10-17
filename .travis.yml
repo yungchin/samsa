@@ -24,6 +24,7 @@ before_script:
     - export C_INCLUDE_PATH=$HOME/include:$C_INCLUDE_PATH
     - export LIBRARY_PATH=$HOME/lib:$LIBRARY_PATH
     - export LD_LIBRARY_PATH=$HOME/lib:$LD_LIBRARY_PATH
+    - export CFLAGS="-coverage"
     - "python -m pykafka.test.kafka_instance 3 --download-dir /home/travis/kafka-bin &"
     - "sleep 10"
 
