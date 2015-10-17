@@ -10,8 +10,8 @@ addons:
     - zlib1g-dev  # for librdkafka
 env:
   - TOXENV=py27 BROKERS=localhost:9092,localhost:9093,localhost:9094 ZOOKEEPER=localhost:2181 KAFKA_BIN=/home/travis/kafka-bin
-  - TOXENV=py34 BROKERS=localhost:9092,localhost:9093,localhost:9094 ZOOKEEPER=localhost:2181 KAFKA_BIN=/home/travis/kafka-bin
-  - TOXENV=pypy BROKERS=localhost:9092,localhost:9093,localhost:9094 ZOOKEEPER=localhost:2181 KAFKA_BIN=/home/travis/kafka-bin
+  #- TOXENV=py34 BROKERS=localhost:9092,localhost:9093,localhost:9094 ZOOKEEPER=localhost:2181 KAFKA_BIN=/home/travis/kafka-bin
+  #- TOXENV=pypy BROKERS=localhost:9092,localhost:9093,localhost:9094 ZOOKEEPER=localhost:2181 KAFKA_BIN=/home/travis/kafka-bin
 
 install:
     - pip install codecov kazoo tox testinstances
@@ -29,11 +29,13 @@ before_script:
     - "sleep 10"
 
 script:
-    - tox
+    - tox -- tests/pykafka/rdkafka/test_rd_kafka_consumer.py
 
 after_success:
-    - pwd
-    - find . -type f -name '*.gcno'
-    - find . -type f -name '*.gcda'
-    - find . -type f -name '*.o'
+    # We mv these to help codecov/gcov find them and avoid a "cannot open graph
+    # file" error:
+    - find . -type f -name '*.gcno' -exec mv {} pykafka/rdkafka/ \;
+    - find . -type f -name '*.gcda' -exec mv {} pykafka/rdkafka/ \;
+    - find pykafka/rdkafka/
     - codecov
+    - gcov --version
