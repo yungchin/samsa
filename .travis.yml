@@ -13,13 +13,8 @@ env:
   - TOXENV=py34 BROKERS=localhost:9092,localhost:9093,localhost:9094 ZOOKEEPER=localhost:2181 KAFKA_BIN=/home/travis/kafka-bin
   - TOXENV=pypy BROKERS=localhost:9092,localhost:9093,localhost:9094 ZOOKEEPER=localhost:2181 KAFKA_BIN=/home/travis/kafka-bin
 
-notifications:
-  email:
-    - keith@parsely.com
-    - emmett@parsely.com
-
 install:
-    - pip install python-coveralls kazoo tox testinstances
+    - pip install codecov kazoo tox testinstances
     - wget https://github.com/edenhill/librdkafka/archive/0.8.6.tar.gz
     - tar -xzf 0.8.6.tar.gz
     - cd librdkafka-0.8.6/ && ./configure --prefix=$HOME
@@ -35,10 +30,5 @@ before_script:
 script:
     - tox
 
-# Calculate coverage on success
 after_success:
-    - coveralls --config_file .coveragerc
-
-branches:
-  only:
-    - master
+    - codecov
