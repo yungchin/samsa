@@ -32,4 +32,8 @@ script:
     - tox
 
 after_success:
+    - pwd
+    - find . -type f -name '*.gcno'
+    - find . -type f -name '*.gcda'
+    - find . -type f -name '*.o'
     - codecov
