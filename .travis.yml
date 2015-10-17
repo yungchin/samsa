@@ -12,14 +12,8 @@ env:
   - TOXENV=py34 BROKERS=localhost:9092,localhost:9093,localhost:9094 ZOOKEEPER=localhost:2181 KAFKA_BIN=/home/travis/kafka-bin
   - TOXENV=pypy BROKERS=localhost:9092,localhost:9093,localhost:9094 ZOOKEEPER=localhost:2181 KAFKA_BIN=/home/travis/kafka-bin
 
-notifications:
-  email:
-    - keith@parsely.com
-    - emmett@parsely.com
-
-
 install:
-    - pip install python-coveralls kazoo tox testinstances
+    - pip install codecov kazoo tox testinstances
 
 before_script:
     - "python -m pykafka.test.kafka_instance 3 --download-dir /home/travis/kafka-bin &"
@@ -28,10 +22,5 @@ before_script:
 script:
     - tox
 
-# Calculate coverage on success
 after_success:
-    - coveralls --config_file .coveragerc
-
-branches:
-  only:
-    - master
+    - codecov
