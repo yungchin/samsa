@@ -4,7 +4,10 @@ python:
   - "2.7"
 addons:
   apt:
+    sources:
+    - ubuntu-toolchain-r-test  # for gcc
     packages:
+    - gcc-4.8  # travis' default 4.6 build has issues with gcov
     - libev-dev
     - libsnappy-dev
     - zlib1g-dev  # for librdkafka
@@ -14,6 +17,7 @@ env:
   #- TOXENV=pypy BROKERS=localhost:9092,localhost:9093,localhost:9094 ZOOKEEPER=localhost:2181 KAFKA_BIN=/home/travis/kafka-bin
 
 install:
+    - export CC=/usr/bin/gcc-4.8
     - pip install codecov kazoo tox testinstances
     - wget https://github.com/edenhill/librdkafka/archive/0.8.6.tar.gz
     - tar -xzf 0.8.6.tar.gz
