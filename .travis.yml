@@ -32,8 +32,9 @@ script:
     - tox -- tests/pykafka/rdkafka/test_rd_kafka_consumer.py
 
 after_success:
-    # We mv these to help codecov/gcov find them and avoid a "cannot open graph
-    # file" error:
-    - gcov -o `find . -type f -name '*.gcno' -exec dirname {} \;` pykafka/rdkafka/_rd_kafkamodule.c
+    # although codecov runs gcov, this tends to fail on travis-ci ("cannot
+    # open graph file"), so we run it in advance with some custom flags, and
+    # codecov will find the resulting output
+    - gcov -b -c -o `find . -type f -name '*.gcno' -exec dirname {} \;` pykafka/rdkafka/_rd_kafkamodule.c
     - codecov
     - gcov --version
