@@ -34,8 +34,6 @@ script:
 after_success:
     # We mv these to help codecov/gcov find them and avoid a "cannot open graph
     # file" error:
-    - find . -type f -name '*.gcno' -exec mv {} pykafka/rdkafka/ \;
-    - find . -type f -name '*.gcda' -exec mv {} pykafka/rdkafka/ \;
-    - find pykafka/rdkafka/
+    - gcov -o `find . -type f -name '*.gcno' -exec dirname {} \;` pykafka/rdkafka/_rd_kafkamodule.c
     - codecov
     - gcov --version
