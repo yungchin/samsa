@@ -29,7 +29,7 @@ before_script:
     - "sleep 10"
 
 script:
-    - tox -- tests/pykafka/rdkafka/test_rd_kafka_consumer.py
+    - tox
 
 after_success:
     # although codecov runs gcov, this tends to fail on travis-ci ("cannot
@@ -37,4 +37,3 @@ after_success:
     # codecov will find the resulting output
     - gcov -b -c -o `find . -type f -name '*.gcno' -exec dirname {} \;` pykafka/rdkafka/_rd_kafkamodule.c
     - codecov
-    - gcov --version
