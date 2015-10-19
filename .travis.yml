@@ -14,7 +14,7 @@ env:
   #- TOXENV=pypy BROKERS=localhost:9092,localhost:9093,localhost:9094 ZOOKEEPER=localhost:2181 KAFKA_BIN=/home/travis/kafka-bin
 
 install:
-    - pip install codecov kazoo tox testinstances
+    - pip install kazoo tox testinstances
     - wget https://github.com/edenhill/librdkafka/archive/0.8.6.tar.gz
     - tar -xzf 0.8.6.tar.gz
     - cd librdkafka-0.8.6/ && ./configure --prefix=$HOME
@@ -35,5 +35,6 @@ after_success:
     # although codecov runs gcov, this tends to fail on travis-ci ("cannot
     # open graph file"), so we run it in advance with some custom flags, and
     # codecov will find the resulting output
-    - gcov -b -c -o `find . -type f -name '*.gcno' -exec dirname {} \;` pykafka/rdkafka/_rd_kafkamodule.c
+    # gcov -b -c -o `find . -type f -name '*.gcno' -exec dirname {} \;` pykafka/rdkafka/_rd_kafkamodule.c
+    - pip install git+https://github.com/codecov/codecov-python.git@master
     - codecov
