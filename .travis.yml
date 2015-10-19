@@ -36,6 +36,6 @@ after_success:
     # open graph file"), so we run it in advance with some custom flags, and
     # codecov will find the resulting output
     # gcov -b -c -o `find . -type f -name '*.gcno' -exec dirname {} \;` pykafka/rdkafka/_rd_kafkamodule.c
-    - codecov --gcov-args "-b -c -o" --dump
-    - codecov --gcov-args "-b -c -o $(find . -type f -name '*.gcno' -exec dirname {} \;)" --dump
+    - codecov --gcov-args="-b -c -o" --dump
+    - codecov --gcov-args="-b -c -o $(find . -type f -name '*.gcno' -exec dirname {} \;)" --dump
     - gcov --version
