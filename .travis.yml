@@ -37,5 +37,5 @@ after_success:
     # codecov will find the resulting output
     # gcov -b -c -o `find . -type f -name '*.gcno' -exec dirname {} \;` pykafka/rdkafka/_rd_kafkamodule.c
     - pip install git+https://github.com/codecov/codecov-python.git@master
-    - codecov
+    - codecov --dump
     - gcov --version
